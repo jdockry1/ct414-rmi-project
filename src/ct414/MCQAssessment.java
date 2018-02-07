@@ -22,7 +22,7 @@ public class MCQAssessment implements Assessment {
 
 	@Override
 	public String getInformation() {
-		return this.title + " Course: " + course.getCourseCode() + " Closing Date: " + closingDate;
+		return this.title + ", Course: " + course.getCourseCode();
 	}
 
 	@Override

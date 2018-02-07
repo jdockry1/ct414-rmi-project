@@ -74,7 +74,7 @@ public class ExamEngine implements ExamServer {
 			if(((MCQAssessment) assessment).getCourse().getCourseCode().equals(courseCode))
 				return assessment;
     	
-        throw new NoMatchingAssessment("Assessment not available");
+        throw new NoMatchingAssessment("Assessment not available!");
     }
 
     // Submit a completed assessment
@@ -84,7 +84,8 @@ public class ExamEngine implements ExamServer {
     	
     	for(MCQAssessment assessment : assessments)
     		if(assessment.getAssociatedID() == completed.getAssociatedID()) {
-    			//assessment = (MCQAssessment) completed;
+				if(new Date().after(assessment.getClosingDate()))
+					throw new NoMatchingAssessment("Couldn't submit because the assessment closed!");
     			for(int i = 0; i < completed.getQuestions().size(); i++) {
     				try {
 						assessment.selectAnswer(i, ((MCQQuestion) completed.getQuestion(i)).getSelectedAnswer());
@@ -96,22 +97,23 @@ public class ExamEngine implements ExamServer {
     			return;
     		}
     	
-    	throw new NoMatchingAssessment("Assessment not available");
+    	throw new NoMatchingAssessment("Assessment not available!");
     }
     
     public boolean validateClientSession(int accessToken) throws UnauthorizedAccess {
     	for(ClientSession clientSession : clientSessions) {
     		if(clientSession.getAccessToken() == accessToken)
-    			return true;
+    			if(new Date().before(clientSession.getDate()))
+    				return true;
     	}
     	
     	throw new UnauthorizedAccess("Client Session no longer valid!");
     }
 
     public static void main(String[] args) {
-        //if (System.getSecurityManager() == null) {
-            //System.setSecurityManager(new SecurityManager());
-        //}
+        if (System.getSecurityManager() == null) {
+            System.setSecurityManager(new SecurityManager());
+        }
         try {
         	List<Course> courses = new ArrayList<Course>();;
         	List<Student> students = new ArrayList<Student>();;

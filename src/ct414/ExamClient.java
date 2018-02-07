@@ -9,12 +9,14 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.JTextField;
@@ -35,6 +37,8 @@ public class ExamClient {
 	private JFrame listAssessmentsFrame;
 	// Assessment GUI
 	private JFrame assessmentFrame;
+	// Assessment Corrected GUi
+	private JFrame assessmentCorrectedFrame;
 	
 	private ExamClient() {
 		LoginGUI();
@@ -95,7 +99,7 @@ public class ExamClient {
 				} catch (NumberFormatException e) {
 					messageLabel.setText("<html>The id entered is invalid</html>");
 				} catch (UnauthorizedAccess e) {
-					messageLabel.setText(e.getReason());
+					messageLabel.setText(e.getMessage());
 				}
 			}
 		});
@@ -123,9 +127,12 @@ public class ExamClient {
 		} catch (RemoteException e) {
 			e.printStackTrace();
 		} catch (UnauthorizedAccess e) {
-			e.printStackTrace();
+			JOptionPane.showMessageDialog(null, e.getMessage());
+			listAssessmentsFrame.setVisible(false);
+			LoginGUI();
+			return;
 		} catch (NoMatchingAssessment e) {
-			JLabel messageLabel = new JLabel("No available assessments");
+			JLabel messageLabel = new JLabel(e.getMessage());
 			messageLabel.setBounds(134, 250, 156, 16);
 			listAssessmentsFrame.getContentPane().add(messageLabel);
 		}
@@ -140,17 +147,24 @@ public class ExamClient {
 			assessmentButton.addActionListener(new ActionListener() {
 				public void actionPerformed(ActionEvent event) {
 					String courseCode = assessmentButton.getText().substring(assessmentButton.getText().indexOf(':') + 2);
-					courseCode = courseCode.substring(0, courseCode.indexOf(' '));
+					//courseCode = courseCode.substring(0, courseCode.indexOf(' '));
 					try {
 						assessment = (MCQAssessment) examServer.getAssessment(accessToken, studentID, courseCode);
-						AssessmentGUI();
+						Date now = new Date();
+						if(now.before(assessment.getClosingDate()))
+							AssessmentGUI();
+						else
+							AssessmentCorrectedGUI();
 						listAssessmentsFrame.setVisible(false);
 					} catch (RemoteException e) {
 						e.printStackTrace();
 					} catch (UnauthorizedAccess e) {
-						e.printStackTrace();
+						JOptionPane.showMessageDialog(null, e.getMessage());
+						listAssessmentsFrame.setVisible(false);
+						LoginGUI();
+						return;
 					} catch (NoMatchingAssessment e) {
-						e.printStackTrace();
+						JOptionPane.showMessageDialog(null, e.getMessage());
 					}
 				}
 			});
@@ -168,11 +182,11 @@ public class ExamClient {
 		
 		JLabel assessmentLabel = new JLabel(assessment.getTitle());
 		assessmentLabel.setFont(new Font("Tahoma", Font.PLAIN, 22));
-		assessmentLabel.setBounds(12, 13, 149, 36);
+		assessmentLabel.setBounds(12, 13, 161, 36);
 		assessmentFrame.getContentPane().add(assessmentLabel);
 		
 		JLabel closingTimeLabel = new JLabel("Closing Time: " + assessment.getClosingDate());
-		closingTimeLabel.setBounds(173, 27, 133, 16);
+		closingTimeLabel.setBounds(173, 27, 448, 16);
 		assessmentFrame.getContentPane().add(closingTimeLabel);
 		
 		JButton submitButton = new JButton("SUBMIT");
@@ -180,15 +194,18 @@ public class ExamClient {
 			public void actionPerformed(ActionEvent event) {
 				try {
 					examServer.submitAssessment(accessToken, studentID, assessment);
-					assessmentFrame.setVisible(false);
-					ListAssessmentsGUI();
 				} catch (RemoteException e) {
 					e.printStackTrace();
 				} catch (UnauthorizedAccess e) {
-					e.printStackTrace();
+					JOptionPane.showMessageDialog(null, e.getMessage());
+					assessmentFrame.setVisible(false);
+					LoginGUI();
+					return;
 				} catch (NoMatchingAssessment e) {
-					e.printStackTrace();
+					JOptionPane.showMessageDialog(null, e.getMessage());
 				}
+				assessmentFrame.setVisible(false);
+				ListAssessmentsGUI();
 			}
 		});
 		submitButton.setBounds(633, 13, 117, 35);
@@ -295,5 +312,114 @@ public class ExamClient {
 		}
 		
 		assessmentFrame.setVisible(true);
+    }
+    
+    public void AssessmentCorrectedGUI() {
+    	assessmentCorrectedFrame = new JFrame();
+    	assessmentCorrectedFrame.setBounds(100, 100, 780, 510);
+    	assessmentCorrectedFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    	assessmentCorrectedFrame.getContentPane().setLayout(null);
+		
+		JLabel assessmentLabel = new JLabel(assessment.getTitle());
+		assessmentLabel.setFont(new Font("Tahoma", Font.PLAIN, 22));
+		assessmentLabel.setBounds(12, 13, 161, 36);
+		assessmentCorrectedFrame.getContentPane().add(assessmentLabel);
+		
+		JButton submitButton = new JButton("FINISH");
+		submitButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent event) {
+				assessmentCorrectedFrame.setVisible(false);
+				ListAssessmentsGUI();
+			}
+		});
+		submitButton.setBounds(633, 13, 117, 35);
+		assessmentCorrectedFrame.getContentPane().add(submitButton);
+		
+		JPanel questionsPanel = new JPanel();
+		questionsPanel.setBounds(12, 62, 738, 388);
+		questionsPanel.setLayout(new GridLayout(4, 0, 0, 0));
+		assessmentCorrectedFrame.getContentPane().add(questionsPanel);
+		
+		int correct = 0;
+		int incorrect = 0;
+		int total = 0;
+
+		for(int i = 0; i < 4; i++) {
+			try {
+				final MCQQuestion question = (MCQQuestion) assessment.getQuestion(i);
+				final int j = i;
+				
+				JPanel questionPanel = new JPanel();
+				questionPanel.setLayout(null);
+				questionsPanel.add(questionPanel);
+				
+				JLabel questionLabel = new JLabel("Q" + question.getQuestionNumber() + ". " + question.getQuestionDetail());
+				questionLabel.setFont(new Font("Tahoma", Font.PLAIN, 16));
+				questionLabel.setBounds(12, 0, 714, 29);
+				questionPanel.add(questionLabel);
+
+				JLabel answerLabel = new JLabel("Correct Answer: " + question.getAnswerOptions()[question.getCorrectAnswer()]);
+				answerLabel.setBounds(503, 67, 223, 20);
+				questionPanel.add(answerLabel);
+				
+				ButtonGroup answers = new ButtonGroup();
+				
+				JRadioButton[] answerButtons = new JRadioButton[4];
+				
+				answerButtons[0] = new JRadioButton(question.getAnswerOptions()[0]);
+				answerButtons[0].setBounds(8, 35, 238, 25);
+				answerButtons[0].setEnabled(false);
+				questionPanel.add(answerButtons[0]);
+				answers.add(answerButtons[0]);
+				
+				answerButtons[1] = new JRadioButton(question.getAnswerOptions()[1]);
+				answerButtons[1].setBounds(250, 38, 245, 25);
+				answerButtons[1].setEnabled(false);
+				questionPanel.add(answerButtons[1]);
+				answers.add(answerButtons[1]);
+				
+				answerButtons[2] = new JRadioButton(question.getAnswerOptions()[2]);
+				answerButtons[2].setBounds(8, 65, 238, 25);
+				answerButtons[2].setEnabled(false);
+				questionPanel.add(answerButtons[2]);
+				answers.add(answerButtons[2]);
+				
+				answerButtons[3] = new JRadioButton(question.getAnswerOptions()[3]);
+				answerButtons[3].setBounds(250, 65, 245, 25);
+				answerButtons[3].setEnabled(false);
+				questionPanel.add(answerButtons[3]);
+				answers.add(answerButtons[3]);
+				
+				if(question.getSelectedAnswer() != -1) {
+					answerButtons[question.getSelectedAnswer()].setSelected(true);
+					answerButtons[question.getSelectedAnswer()].setForeground(Color.RED);
+					answerButtons[question.getCorrectAnswer()].setForeground(Color.GREEN);
+				}
+				
+				total++;
+				// If the answer is right ...
+				if(question.getSelectedAnswer() == question.getCorrectAnswer()) {
+					correct++;
+					answerLabel.setForeground(Color.GREEN);
+				}
+				else {
+					incorrect++;
+					answerLabel.setForeground(Color.RED);
+				}
+					
+				JPanel horizontalLine = new JPanel();
+				horizontalLine.setBackground(Color.DARK_GRAY);
+				horizontalLine.setBounds(0, 0, 738, 2);
+				questionPanel.add(horizontalLine);
+			} catch (InvalidQuestionNumber e) {
+				e.printStackTrace();
+			}
+		}
+		
+		JLabel resultLabel = new JLabel("Result: " + correct + "/" + total);
+		resultLabel.setBounds(173, 27, 448, 16);
+		assessmentCorrectedFrame.getContentPane().add(resultLabel);
+		
+		assessmentCorrectedFrame.setVisible(true);
     }
 }
